@@ -28,8 +28,8 @@
 		 #:phases
 		 (modify-phases %standard-phases
 		   (add-before 'configure 'autoreconf (lambda _
-							(zero? (system* "autoreconf" "-vfi"))))
-		   (delete 'check)))) ; check fails on /bin/pwd - .. don't know how to fix yet
+							(zero? (system* "autoreconf" "-vfi")))))
+		 #:tests? #f))
     (inputs `(("readline" ,readline)
 	      ("perl" ,perl)))
     (native-inputs `(("autoconf" ,autoconf)

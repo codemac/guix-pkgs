@@ -4,7 +4,6 @@
   #:use-module (gnu packages pkg-config)
   #:use-module (gnu packages readline)
   #:use-module (guix build gnu-build-system)
-  #:use-module (guix build gnu-dist)
   #:use-module (guix build utils)
   #:use-module (guix build-system gnu)
   #:use-module (guix download)
@@ -39,4 +38,4 @@
     (synopsis "An alternative implementation of the plan 9 rc shell.")
     (description "Byron's rc implementation. Features much wine and such.")
     (home-page "http://github.com/rakitzis/rc")
-    (license (bsd-style "https://github.com/rakitzis/rc/blob/master/COPYING" "Looks bsd-ish, will ask byron later."))))
+    (license zlib)))

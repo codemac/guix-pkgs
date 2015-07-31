@@ -10,6 +10,7 @@
   #:use-module (gnu packages gcc)
   #:use-module (gnu packages linux)
   #:use-module (gnu packages admin)
+  #:use-module (gnu packages perl)
   #:use-module (gnu packages bash))
 
 (define-public go
@@ -45,14 +46,67 @@
                           (bu (string-append (assoc-ref %build-inputs "binutils") "/bin"))
                           (iana (string-append (assoc-ref %build-inputs "iana") "/etc"))
                           (sed (string-append (assoc-ref %build-inputs "sed") "/bin/sed"))
+                          (sedbin (string-append (assoc-ref %build-inputs "sed") "/bin"))
+                          (perl (string-append (assoc-ref %build-inputs "perl") "/bin"))
+                          (du (string-append (assoc-ref %build-inputs "diffutils") "/bin"))
                           (tz (string-append (assoc-ref %build-inputs "tzdata") "/share/zoneinfo")))
                      (begin
                        (let ((dapath (fold (lambda (x y) (string-append y ":" x)) "."
-                                           (list tar gzip bash cu gcc grep bu))))
+                                           (list tar gzip bash cu gcc grep bu perl du sedbin))))
                          (setenv "PATH" dapath)
                          (setenv "LD_LIBRARY_PATH" (string-append gcclib ":" glibclib))
                          (zero? (system* "tar" "xvf" tarballgz))
-                         (chdir "go/src")
+                         (chdir "go")
+                         (substitute* 
+                             '("doc/articles/wiki/test.bash"
+                               "doc/codewalk/run"
+                               "doc/progs/run"
+                               "doc/progs/update.bash"
+                               "misc/arm/a"
+                               "misc/benchcmp"
+                               "misc/cgo/testso/test.bash"
+                               "misc/makerelease/darwin/scripts/postinstall"
+                               "misc/makerelease/darwin/scripts/preinstall"
+                               "misc/nacl/go_nacl_386_exec"
+                               "misc/nacl/go_nacl_amd64p32_exec"
+                               "misc/nacl/go_nacl_arm_exec"
+                               "src/all.bash"
+                               "src/androidtest.bash"
+                               "src/clean.bash"
+                               "src/cmd/go/test.bash"
+                               "src/make.bash"
+                               "src/nacltest.bash"
+                               "src/net/http/cgi/testdata/test.cgi"
+                               "src/race.bash"
+                               "src/regexp/syntax/make_perl_groups.pl"
+                               "src/run.bash"
+                               "src/runtime/mknacl.sh"
+                               "src/sudo.bash"
+                               "src/syscall/mkall.sh"
+                               "src/syscall/mkerrors.sh"
+                               "src/syscall/mksyscall.pl"
+                               "src/syscall/mksyscall_solaris.pl"
+                               "src/syscall/mksysctl_openbsd.pl"
+                               "src/syscall/mksysnum_darwin.pl"
+                               "src/syscall/mksysnum_dragonfly.pl"
+                               "src/syscall/mksysnum_freebsd.pl"
+                               "src/syscall/mksysnum_linux.pl"
+                               "src/syscall/mksysnum_netbsd.pl"
+                               "src/syscall/mksysnum_openbsd.pl"
+                               "test/bench/shootout/timing.sh"
+                               "test/errchk"
+                               "test/run")
+                             (("/bin/bash") (which "bash"))
+                             (("/usr/bin/env bash") (which "bash"))
+                             (("/usr/bin/env perl") (which "perl"))
+                             (("/usr/bin/perl") (which "perl")))
+
+                         (zero? (system* sed "-i" "3i" (string-append "PATH=" dapath " && export PATH=$PATH") "misc/cgo/errors/test.bash"))
+                         (zero? (system* sed "-i" "3i" (string-append "PATH=" dapath) "test/bench/shootout/timing.sh"))
+
+
+
+                         (chdir "src")
                          ;;   # Disabling the 'os/http/net' tests (they want files not available in
                          ;;   # chroot builds)
                          ;;
@@ -90,6 +144,8 @@
                          (substitute* "time/zoneinfo_unix.go"
                            (("/usr/share/zoneinfo/") tz))
 
+
+                         (zero? (system* sed "-i" "3iset -x" "cmd/go/test.bash"))
                          ;; exec.Command on os.Args[0] from go run for
                          ;; whatever reason doesn't work right
                          ;; now. libgcc_s.so link missing crap occurs here as
@@ -115,9 +171,9 @@
                          (for-each (lambda (x) (copy-recursively (string-append "go/" x) (string-append out-usrgo "/" x)))
                                    (scandir "go" (lambda (x) (not (or (equal? x "bin")
                                                                       (equal? x "..")
-                                                                      (equal? x "."))))))
-                         (copy-recursively "go/bin" out-bin)
-                         (symlink out-bin (string-append out-usrgo "/bin"))))))))
+                                                                      (equal? x ".")))))))
+                       (copy-recursively "go/bin" out-bin)
+                       (symlink out-bin (string-append out-usrgo "/bin")))))))
     (native-inputs `(("tar" ,tar)
                      ("gzip" ,gzip)
                      ("bash" ,bash)
@@ -125,10 +181,12 @@
                      ("grep" ,grep)
                      ("gcc" ,gcc)
                      ("gcc-lib" ,gcc "lib")
+                     ("perl" ,perl)
                      ("binutils" ,binutils)
                      ("glibc" ,glibc)
                      ("lheaders" ,linux-libre-headers)
-                     ("sed" ,sed)))
+                     ("sed" ,sed)
+                     ("diffutils" ,diffutils)))
     (inputs `(("glibc" ,glibc)
               ("gcc-lib" ,gcc "lib")
               ("gcc" ,gcc)

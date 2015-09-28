@@ -1,5 +1,5 @@
+
 (define-module (codemac packages pigz)
-  #:use-module (ice-9 match)
   #:use-module ((guix licenses) #:prefix license:)
   #:use-module (guix packages)
   #:use-module (guix download)
@@ -22,17 +22,24 @@
      `(#:phases
        (modify-phases %standard-phases
          (delete 'configure)
-         (add-after 'set-paths 'set-cc-paths
-                    (lambda* (#:key inputs outputs (search-paths '()) #:allow-other-keys)
-                      (define input-directories
-                        (match inputs (((_ . dir) ...) dir)))
-                      (set-path-environment-variable "CC"
-                                                     '("bin/gcc")
-                                                     input-directories))))))
-    (inputs `(("zlib" ,zlib)
-              ("gcc" ,gcc)))
+         (replace 'install
+                  (lambda* (#:key outputs #:allow-other-keys)
+                    (let* ((out (assoc-ref outputs "out"))
+                           (bin (string-append out "/bin"))
+                           (man (string-append out "/share/man/man1")))
+                      (mkdir-p bin)
+                      (copy-file "pigz" (string-append bin "/pigz"))
+                      (symlink
+                       (string-append bin "/pigz")
+                       (string-append bin  "/unpigz"))
+                      (mkdir-p man)
+                      (copy-file "pigz.1" (string-append man "/pigz.1")))
+                    #t)))
+       #:make-flags (list "CC=gcc")
+       #:test-target "tests"))
+    (inputs `(("zlib" ,zlib)))
     (home-page "http://zlib.net/pigz/")
-    (synopsis "A parallel implementation of gzip for multi-processor, 
+    (synopsis "Parallel implementation of gzip for multi-processor,
 multi-core machines")
     (description "A parallel implementation of gzip that is a fully functional
 replacement for gzip that exploits multiple processors and multiple cores when

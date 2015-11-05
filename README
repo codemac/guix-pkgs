@@ -1,5 +1,12 @@
-;;; -*- mode: org; -*-
+# -*- mode: org; -*-
+#+STARTUP: showall
 
 * Guix packages
 
 This repo contains my packages for guix.
+
+You'll note that I place packages that are currently "in development"
+somewhere other than codemac/package/foo. This is so the guix tool doesn't
+pick up packages I'm only working on.
+
+

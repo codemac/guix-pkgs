@@ -85,7 +85,6 @@
            "ac_add_options --enable-system-hunspell"
            "ac_add_options --enable-system-sqlite"
            "ac_add_options --enable-system-ffi"
-           ;;"#ac_add_options --enable-system-cairo"
            "ac_add_options --enable-system-pixman"
 
            "ac_add_options --enable-startup-notification"
@@ -96,8 +95,7 @@
            "ac_add_options --disable-updater"
            "ac_add_options --disable-installer"
            "ac_add_options --disable-debug-symbols")))
-    (fold (lambda (x) (string-append x "\n")) mozconf-start)
-    ))
+    (string-append (fold (lambda (x) (string-append x "\n")) ""  mozconf-start))))
 
 
 

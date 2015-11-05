@@ -135,6 +135,7 @@ rates.")
     (arguments
      `(#:configure-flags (list "--localstatedir=/var" ;"--sysconfdir=/etc"
                                "--disable-oss-output"
+                               (string-append "--with-bash-completion-dir=" (assoc-ref %outputs "out") "/etc/bash_completion.d")
                                (string-append "--with-udev-rules-dir="
                                               (assoc-ref %outputs "out")
                                               "/lib/udev/rules.d"))

@@ -5,6 +5,7 @@
   #:use-module (gnu packages xorg)
   #:use-module (gnu packages glib)
   #:use-module (gnu packages freedesktop)
+  #:use-module (gnu packages gtk)
   #:use-module (gnu packages python)
   #:use-module (gnu packages pkg-config)
   #:use-module (guix licenses)
@@ -57,28 +58,8 @@ smoothly from night to daytime temperature to allow your eyes to slowly
 adapt. At night the color temperature should be set to match the lamps in your
 room.")
     (license gpl3+)))
-;; this still fails horribly with errors around the python in python-gtk.
 
-;; notably the current error is:
-#|
-; /gnu/store/jpmvli29cjiyr4qpjbv2q94il8r6rdc1-redshift-gtk-1.10/bin/redshift-gtk
-Traceback (most recent call last):
-  File "<frozen importlib._bootstrap>", line 2158, in _find_spec
-AttributeError: 'DynamicImporter' object has no attribute 'find_spec'
-
-During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "/gnu/store/jpmvli29cjiyr4qpjbv2q94il8r6rdc1-redshift-gtk-1.10/bin/redshift-gtk", line 26, in <module>
-    from redshift_gtk.statusicon import run
-  File "/gnu/store/jpmvli29cjiyr4qpjbv2q94il8r6rdc1-redshift-gtk-1.10/lib/python3.4/site-packages/redshift_gtk/statusicon.py", line 32, in <module>
-    from gi.repository import Gtk, GLib, GObject
-  File "/gnu/store/6sbk41a6zrzzzm3r2s1fb75ihc5wnrkj-python-pygobject-3.18.0/lib/python3.4/site-packages/gi/importer.py", line 145, in find_module
-    'introspection typelib not found' % namespace)
-ImportError: cannot import name Gtk, introspection typelib not found
-; 
-
-|#
+;; This still can't seem to find the freaking icons! so frustrating!
 (define-public redshift-gtk
   (package
     (inherit redshift)
@@ -93,16 +74,20 @@ ImportError: cannot import name Gtk, introspection typelib not found
        #:phases
        (modify-phases
            %standard-phases
-         (add-before 'configure 'replace-pythondir
-                     (lambda* (#:key inputs outputs #:allow-other-keys)
-                       (substitute* "src/redshift-gtk/redshift-gtk.in"
-                         (("^sys\\.path\\.append\\('\\@pythondir\\@'\\)")
-                          (string-append "sys.path.extend(['"
-                                         (string-join (cons (string-append (assoc-ref outputs "out")
-                                                                           "/lib/python3.4/site-packages")
-                                                            (string-split (getenv "PYTHONPATH") #\:)
-                                                            ) "', '")
-                                         "'])"))))))))
+         (add-after 'install 'wrap-program
+                    (lambda* (#:key inputs outputs #:allow-other-keys)
+                      (let* ((out (assoc-ref outputs "out"))
+                             (prog (string-append out "/bin/redshift-gtk")))
+                        (wrap-program prog
+                          `("PYTHONPATH" = (,(getenv "PYTHONPATH")))
+                          `("GI_TYPELIB_PATH" = (,(getenv "GI_TYPELIB_PATH")))
+                          `("XDG_DATA_DIRS" = (,(getenv "XDG_DATA_DIRS"))))
+                        (let ((hicolor (assoc-ref inputs "hicolor-icon-theme"))
+                              (dir "/share/icons/hicolor/")
+                              (name "index.theme"))
+                          (install-file (string-append hicolor dir name) (string-append out dir))
+                          )
+                        #t))))))
     (inputs `(("geoclue" ,geoclue)
               ("libdrm" ,libdrm)
               ("libxcb" ,libxcb)
@@ -110,7 +95,10 @@ ImportError: cannot import name Gtk, introspection typelib not found
               ("hicolor-icon-theme" ,hicolor-icon-theme)
               ("python-pygobject" ,python-pygobject)
               ("python-pyxdg" ,python-pyxdg)
+              ("python" ,python-wrapper)
+              ("gobject-introspection" ,gobject-introspection)
+              ("gtk+" ,gtk+)
               ("librsvg" ,librsvg)))
     (native-inputs `(("pkg-config" ,pkg-config)
-                     ("python" ,python)
                      ("intltool" ,intltool)))))
+

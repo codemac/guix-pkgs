@@ -15,6 +15,7 @@
   #:use-module (gnu packages python)
   #:use-module (gnu packages texinfo)
   #:use-module (guix build-system cmake)
+  #:use-module (guix build-system trivial)
   #:use-module (guix build-system gnu))
 
 (define-public utfcpp
@@ -29,17 +30,18 @@
               (sha256
                (base32 "13909xsr1lk35cch72piqi8pk3s8zzvbh5mz988is20bbwwppq2h"))
               (file-name (string-append name "-" version))))
-    (build-system gnu-build-system)
+    (build-system trivial-build-system)
     (arguments
-     `(#:phases
-       (modify-phases %standard-phases
-         (delete 'configure)
-         (delete 'build)
-         (delete 'check)
-         (replace 'install
-           (lambda* (#:key outputs #:allow-other-keys)
-             (let ((incdir (string-append (assoc-ref outputs "out") "/include")))
-               (copy-recursively "source" incdir)))))))
+     `(#:modules
+       ((guix build utils))
+       #:builder
+       (begin
+         (use-modules (guix build utils))
+         (let ((source (string-append (assoc-ref %build-inputs "source")
+                                     "/source"))
+               (out    (string-append (assoc-ref %outputs "out")
+                                      "/include")))
+           (copy-recursively source out)))))
     (home-page "http://github.com/jwiegley/utfcpp")
     (synopsis "Small generic C++ library for UTF-8 encoded strings")
     (description "A small generic C++ library for UTF-8 encoded strings.  ICU

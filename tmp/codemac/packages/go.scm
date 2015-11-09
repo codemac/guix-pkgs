@@ -55,16 +55,9 @@
                                   (assoc-ref inputs "iana") "/etc")))
 
                       (setenv "CGO_ENABLED" "1")
-                      (let ((ldrpaths (string-join
-                                       (string-split (getenv "LIBRARY_PATH") #\:)
-                                       " -Wl,-rpath,"
-                                       'prefix)))
-                        (display ldrpaths)
 
-                        (setenv "GO_LDFLAGS" (string-append
-                                              " -r " (getenv "LIBRARY_PATH")
-                                              " -linkmode=external"
-                                              " -extldflags \"-static " ldrpaths " \" ")))
+                      (setenv "GO_LDFLAGS" (string-append
+                                            " -r " (getenv "LIBRARY_PATH")))
 
                       (setenv "GOROOT_FINAL" out-goroot)
 
@@ -123,7 +116,16 @@
                                                          (equal? x "..")
                                                          (equal? x "."))))))
                       (copy-recursively "go/bin" out-gobin)
-                      (symlink out-gobin (string-append out-goroot "/bin"))))))))
+                      (symlink out-gobin (string-append out-goroot "/bin")))))
+         (add-after 'install 'wrap-program
+           (lambda* (#:key inputs outputs #:allow-other-keys)
+             (let ((prog (string-append (assoc-ref outputs "out") "/bin/go")))
+               (wrap-program prog
+                 `("GO_LDFLAGS" prefix (,(string-append "-r "(getenv "LIBRARY_PATHS"))))
+                 `("CGO_LDFLAGS" prefix (,(string-join
+                                           (string-split (getenv "LIBRARY_PATH") #\:)
+                                           " -Wl,-rpath,"
+                                           'prefix))))))))))
     (native-inputs `(("gcc-lib" ,gcc "lib")
                      ("glibc" ,glibc)
                      ("gcc" ,gcc)

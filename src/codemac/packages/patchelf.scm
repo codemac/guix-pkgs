@@ -8,9 +8,9 @@
   #:use-module (gnu packages m4)
   #:use-module (gnu packages compression))
 
-(define-public patchelf
+(define-public patchelf-poop
   (package
-    (name "patchelf")
+    (name "patchelf-poop")
     (version "0.8.git")
     (source (origin
               (method git-fetch)

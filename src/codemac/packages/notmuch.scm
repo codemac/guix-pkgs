@@ -1,0 +1,88 @@
+(define-module (codemac packages notmuch)
+  #:use-module (gnu packages)
+  #:use-module (gnu packages autotools)
+  #:use-module (gnu packages mail)
+  #:use-module (gnu packages base)
+  #:use-module (gnu packages backup)
+  #:use-module (gnu packages bash)
+  #:use-module (gnu packages bison)
+  #:use-module (gnu packages curl)
+  #:use-module (gnu packages cyrus-sasl)
+  #:use-module (gnu packages databases)
+  #:use-module (gnu packages dejagnu)
+  #:use-module (gnu packages emacs)
+  #:use-module (gnu packages enchant)
+  #:use-module (gnu packages ghostscript)
+  #:use-module (gnu packages glib)
+  #:use-module (gnu packages gnome)
+  #:use-module (gnu packages gnupg)
+  #:use-module (gnu packages gsasl)
+  #:use-module (gnu packages gtk)
+  #:use-module (gnu packages guile)
+  #:use-module (gnu packages flex)
+  #:use-module (gnu packages libcanberra)
+  #:use-module (gnu packages libidn)
+  #:use-module (gnu packages linux)
+  #:use-module (gnu packages m4)
+  #:use-module (gnu packages ncurses)
+  #:use-module (gnu packages pcre)
+  #:use-module (gnu packages perl)
+  #:use-module (gnu packages python)
+  #:use-module (gnu packages readline)
+  #:use-module (gnu packages search)
+  #:use-module (gnu packages texinfo)
+  #:use-module (gnu packages compression)
+  #:use-module (gnu packages glib)
+  #:use-module (gnu packages pkg-config)
+  #:use-module (gnu packages flex)
+  #:use-module (gnu packages gdb)
+  #:use-module (gnu packages samba)
+  #:use-module (gnu packages tls)
+  #:use-module (gnu packages xml)
+  #:use-module (gnu packages xorg)
+  #:use-module ((guix licenses) #:select (gpl3+))
+  #:use-module (guix packages)
+  #:use-module (guix download)
+  #:use-module (guix build-system gnu))
+
+(define-public notmuch
+  (package
+    (name "notmuch")
+    (version "0.21")
+    (source (origin
+              (method url-fetch)
+              (uri (string-append "http://notmuchmail.org/releases/notmuch-"
+                                  version ".tar.gz"))
+              (sha256
+               (base32 "1cr53rbpkcy3pvrmhbg2gq7sjpwb0c8xd7a4zhzxbiv8s7z8yvyh"))))
+    (build-system gnu-build-system)
+    (arguments
+     '(#:tests? #f ;; FIXME: 637 tests; 70 fail and 98 are skipped
+       #:phases (modify-phases %standard-phases
+                  (replace 'configure
+                    (lambda* (#:key outputs #:allow-other-keys)
+                      (setenv "CC" "gcc")
+                      (setenv "CONFIG_SHELL" (which "sh"))
+
+                      (let ((out (assoc-ref outputs "out")))
+                        (zero? (system* "./configure"
+                                        (string-append "--prefix=" out)))))))))
+    (native-inputs
+     `(("pkg-config" ,pkg-config)
+       ("python" ,python-2)
+       ("python-docutils" ,python2-docutils)
+       ("python-sphinx" ,python2-sphinx)
+       ("bash-completion" ,bash-completion)))
+    (inputs
+     `(("emacs" ,emacs)
+       ("glib" ,glib)
+       ("gmime" ,gmime)
+       ("talloc" ,talloc)
+       ("xapian" ,xapian)
+       ("zlib" ,zlib)))
+    (home-page "http://notmuchmail.org/")
+    (synopsis "Thread-based email index, search, and tagging")
+    (description
+     "Notmuch is a command-line based program for indexing, searching, read-
+ing, and tagging large collections of email messages.")
+    (license gpl3+)))

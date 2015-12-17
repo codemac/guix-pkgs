@@ -22,9 +22,9 @@
 (define (go-dl-uri version)
   (string-append "https://storage.googleapis.com/golang/go" version ".src.tar.gz"))
 
-(define-public broken-go-1.4.3
+(define-public go-1.4.3
   (package
-    (name "broken-go")
+    (name "go")
     (version "1.4.3")
     (source
      (origin
@@ -54,7 +54,7 @@
                          (assoc-ref inputs "tzdata") "/share/zoneinfo"))
                     (iana (string-append
                            (assoc-ref inputs "iana") "/etc")))
-               
+
                (setenv "CGO_ENABLED" "1")
                
                (setenv "GO_LDFLAGS" (string-append
@@ -71,7 +71,7 @@
                ;; permanently set ldflags below. If there is a better
                ;; way of doing this I welcome it.
 
-               (setenv "LD_LIBRARY_PATH" (getenv "LIBRARY_PATH"))
+;               (setenv "LD_LIBRARY_PATH" (getenv "LIBRARY_PATH"))
                
                ;; (substitute* "src/runtime/cgo/cgo.go"
                ;;   (("#cgo !android,linux LDFLAGS: -lpthread")
@@ -126,7 +126,7 @@
                ;; "src/cmd/8l/asm.c") ) make / run / all.bash must be run from
                ;; src
                (chdir "src")
-               (unless (zero? (system* "bash" "./make.bash"))
+               (unless (zero? (system* "bash" "./all.bash"))
                  (error "all.bash failed")))
              (chdir "..")))
          (replace 'install
@@ -210,7 +210,7 @@ and a large standard library.")
 ;; know what the Go's project's test framework is like. It would only need to
 ;; be a correct Go implementation for the duration of build.
 (define-public go-1.5.1
-  (package (inherit broken-go-1.4.3)
+  (package (inherit go-1.4.3)
     (name "go")
     (version "1.5.1")
     (source
@@ -227,7 +227,7 @@ and a large standard library.")
          (delete 'strip)
          (replace 'build
                   (lambda* (#:key inputs outputs #:allow-other-keys)
-                    (let* ((oldgo (assoc-ref inputs "go")))
+                    (let* ((oldgo (assoc-ref inputs "gccgo")))
                       (setenv "GOROOT_BOOTSTRAP" oldgo)
 
                       ;; for the crippled go to work
@@ -275,6 +275,6 @@ and a large standard library.")
                            sd))
                (copy-recursively "go/bin" out-gobin)
                (symlink out-gobin (string-append out-goroot "/bin"))))))))
-    (native-inputs `(("go" ,broken-go-1.4.3)
+    (native-inputs `(("gccgo" ,gccgo-5)
                      ("rc" ,rc)
                      ("perl" ,perl)))))

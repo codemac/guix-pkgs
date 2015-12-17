@@ -21,7 +21,8 @@
                                   version "/llvm-" version ".src.tar.xz"))
               (sha256
                (base32 "0lrirklh4nrcb078qc2f6vbmmc34kxqgsy9s18a1xbfdkmgqjidb"))
-              (patches '("/home/codemac/code/guix-pkgs/tmp/codemac/packages/patches/extempore-llvm-3.7.0.patch"))))))
+              (patches '("/home/codemac/code/guix-pkgs/tmp/codemac/packages/patches/extempore-llvm-3.7.0.patch"))))
+    ))
 
 (define-public extempore
   (package
@@ -37,9 +38,19 @@
               (file-name (string-append name "-" version "-cae12f29dd03be60123ba0337aa8988d0dc845c5"))))
     (build-system cmake-build-system)
     (arguments
-     `(#:configure-flags
-       '("-DDOWNLOAD_LLVM=OFF"
-         (string-append "-DEXT_LLVM_DIR=" ,extempore-llvm))))
+     `(#:tests? #f
+       #:phases
+       (modify-phases %standard-phases
+         (add-before 'configure 'symlink-llvm
+           (lambda* (#:key inputs #:allow-other-keys)
+             (symlink (assoc-ref inputs "extempore-llvm") "llvm")))
+         (add-before 'install 'compile-stdlib
+           (lambda* (#:key inputs #:allow-other-keys)
+             (unless (zero? (system* "make" "aot" "aot_extended"))
+               (error "could not build aot!")))))
+       #:configure-flags
+       (list "-DDOWNLOAD_LLVM=OFF"
+             (string-append "-DEXT_LLVM_DIR=" (assoc-ref %build-inputs "extempore-llvm")))))
     (native-inputs `(("extempore-llvm" ,extempore-llvm)))
     (inputs
      `(("alsa-lib" ,alsa-lib)))

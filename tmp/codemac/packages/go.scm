@@ -49,6 +49,7 @@
            (lambda* (#:key inputs outputs #:allow-other-keys)
              (let* ((out-goroot (string-append
                                  (assoc-ref outputs "out") "/lib/go"))
+                    (libgccs (string-append (assoc-ref inputs "gcc-lib") "/lib/libgcc_s.so.1"))
                     (ld-linux (string-append (assoc-ref inputs "glibc") "/lib/ld-linux-x86-64.so.2"))
                     (tz (string-append
                          (assoc-ref inputs "tzdata") "/share/zoneinfo"))
@@ -56,33 +57,48 @@
                            (assoc-ref inputs "iana") "/etc")))
 
                (setenv "CGO_ENABLED" "1")
-               
+
                (setenv "GO_LDFLAGS" (string-append
                                      " -r " (getenv "LIBRARY_PATH")
                                      " -extldflags \""
                                      (string-join
                                       (string-split (getenv "LIBRARY_PATH") #\:)
-                                      " -Wl,-rpath,"
+                                      " -Wl,-rpath="
                                       'prefix)
+                                     " -Wl,--verbose=99"
+                                     " --enable-new-dtags"
+                                     " " libgccs
                                      "\""
+                                     ))
+
+               (setenv "CGO_LDFLAGS" (string-append
+                                     (string-join
+                                      (string-split (getenv "LIBRARY_PATH") #\:)
+                                      " -Wl,-rpath="
+                                      'prefix)
+                                     (string-join
+                                      (string-split (getenv "LIBRARY_PATH") #\:)
+                                      " -L"
+                                      'prefix)
+                                     " -Wl,--verbose=99"
+                                     " --enable-new-dtags"
                                      ))
 
                ;; make sure tests pass, they do not respect our more
                ;; permanently set ldflags below. If there is a better
                ;; way of doing this I welcome it.
 
-;               (setenv "LD_LIBRARY_PATH" (getenv "LIBRARY_PATH"))
-               
-               ;; (substitute* "src/runtime/cgo/cgo.go"
-               ;;   (("#cgo !android,linux LDFLAGS: -lpthread")
-               ;;    (string-append "#cgo !android,linux LDFLAGS: "
-               ;;                   (string-join
-               ;;                    (string-split (getenv "LIBRARY_PATH") #\:)
-               ;;                    " -Wl,-rpath,"
-               ;;                    'prefix)
-               ;;                   (string-join (string-split (getenv "LIBRARY_PATH") #\:)
-               ;;                                " -L" 'prefix)
-               ;;                   " -lpthread")))
+               (substitute* "src/runtime/cgo/cgo.go"
+                 (("#cgo !android,linux LDFLAGS: -lpthread")
+                  (string-append "#cgo !android,linux LDFLAGS: "
+                                 (string-join
+                                  (string-split (getenv "LIBRARY_PATH") #\:)
+                                  " -Wl,-rpath="
+                                  'prefix)
+                                 (string-join (string-split (getenv "LIBRARY_PATH") #\:)
+                                              " -L" 'prefix)
+                                 " -Wl,--dynamic-linker=" ld-linux
+                                 " -lpthread")))
                (setenv "GOROOT_FINAL" out-goroot)
                
                ;; these all have specific file locations they look for
@@ -126,7 +142,11 @@
                ;; "src/cmd/8l/asm.c") ) make / run / all.bash must be run from
                ;; src
                (chdir "src")
-               (unless (zero? (system* "bash" "./all.bash"))
+               ;; this should be all.bash but there is no sane way to patch
+               ;; the go binary that is run witohut doing the wrapping
+               ;; beforehand for rpath. Will need to come up with something
+               ;; around this.
+               (unless (zero? (system* "bash" "./make.bash"))
                  (error "all.bash failed")))
              (chdir "..")))
          (replace 'install
@@ -151,12 +171,13 @@
              'install
              'wrap-program
            (lambda* (#:key inputs outputs #:allow-other-keys)
-             (let ((prog (string-append (assoc-ref outputs "out") "/bin/go")))
-               (wrap-program prog
+             (let ((goprog (string-append (assoc-ref outputs "out") "/bin/go"))
+                   (cgoprog (string-append (assoc-ref outputs "out") "/lib/go/pkg/tool/linux_amd64/cgo")))
+               (wrap-program goprog
                  `("GO_LDFLAGS" prefix (,(string-append "-r "(getenv "LIBRARY_PATH"))))
                  `("CGO_LDFLAGS" prefix (,(string-join
                                            (string-split (getenv "LIBRARY_PATH") #\:)
-                                           " -Wl,-rpath,"
+                                           " -Wl,-rpath="
                                            'prefix)))
                  `("GOROOT" = (,(string-append (assoc-ref outputs "out") "/lib/go"))))))))))
     (native-inputs `(("gcc-lib" ,gcc "lib")
@@ -209,16 +230,16 @@ and a large standard library.")
 ;; go-1.4.2 for bootstrapping, and use gccgo. This may have bugs though, don't
 ;; know what the Go's project's test framework is like. It would only need to
 ;; be a correct Go implementation for the duration of build.
-(define-public go-1.5.1
+(define-public go-1.5.2
   (package (inherit go-1.4.3)
     (name "go")
-    (version "1.5.1")
+    (version "1.5.2")
     (source
      (origin
        (method url-fetch)
        (uri (go-dl-uri version))
        (sha256
-        (base32 "0ss3xkqcy15sqkcrg47sr84xgp19gicxvdx9jvijm9yrk0z8g2d8"))))
+        (base32 "0x3sk32ym93hnc0yk6bnra226f92qvixia6kwcf68q84q0jddpgk"))))
     (arguments
      `(#:tests? #f ; included in go's build
        #:phases
@@ -226,36 +247,63 @@ and a large standard library.")
          (delete 'configure)
          (delete 'strip)
          (replace 'build
-                  (lambda* (#:key inputs outputs #:allow-other-keys)
-                    (let* ((oldgo (assoc-ref inputs "gccgo")))
-                      (setenv "GOROOT_BOOTSTRAP" oldgo)
+           (lambda* (#:key inputs outputs #:allow-other-keys)
+             (let* ((oldgo (string-append (assoc-ref inputs "go") "/lib/go"))
+                    (libgccs (string-append (assoc-ref inputs "gcc-lib") "/lib/libgcc_s.so.1")))
+               (setenv "GOROOT_BOOTSTRAP" oldgo)
+               
+               (setenv "CGO_ENABLED" "1")
+               
+               (setenv "GO_LDFLAGS" (string-append
+                                     " -r " (getenv "LIBRARY_PATH")
+                                     " -extldflags \""
+                                     (string-join
+                                      (string-split (getenv "LIBRARY_PATH") #\:)
+                                      " -Wl,-rpath="
+                                      'prefix)
+                                     " -Wl,--verbose=99"
+                                     " --enable-new-dtags"
+                                     " " libgccs
+                                     "\""
+                                     ))
+               
+               (setenv "CGO_LDFLAGS" (string-append
+                                      (string-join
+                                       (string-split (getenv "LIBRARY_PATH") #\:)
+                                       " -Wl,-rpath="
+                                       'prefix)
+                                      (string-join
+                                       (string-split (getenv "LIBRARY_PATH") #\:)
+                                       " -L"
+                                       'prefix)
+                                      " -Wl,--verbose=99"
+                                      " --enable-new-dtags"
+                                      ))
+               
 
-                      ;; for the crippled go to work
-                      (setenv "LD_LIBRARY_PATH" (getenv "LIBRARY_PATH"))
-
-                      ;; things to get the test working:
-                      (substitute* "src/net/listen_test.go"
-                        (("TestIPv4MulticastListener") "areturn"))
-
-                      ;; need to do the iana hack!
-                      (substitute* "src/net/parse_test.go"
-                        (("TestReadLine") "areturn1"))
-
-                      (substitute* "src/net/port_test.go"
-                        (("TestLookupPort") "areturn2"))
-
-                      (substitute* "src/os/os_test.go"
-                        (("TestReaddirnamesOneAtATime") "areturn")
-                        (("TestStartProcess") "areturn1")
-                        (("TestChdirAndGetwd") "areturn2")
-                        (("TestHostname") "areturn3"))
-
-                      ;; this had a libgcc_s error, fuck
-                      (delete-file "src/os/exec/exec_test.go")
-                      
-                      (chdir "src")
-                      (unless (zero? (system* "bash" "./make.bash"))
-                        (error "Failed all.bash")))))
+               ;; things to get the test working:
+               (substitute* "src/net/listen_test.go"
+                 (("TestIPv4MulticastListener") "areturn"))
+               
+               ;; need to do the iana hack!
+               (substitute* "src/net/parse_test.go"
+                 (("TestReadLine") "areturn1"))
+               
+               (substitute* "src/net/port_test.go"
+                 (("TestLookupPort") "areturn2"))
+               
+               (substitute* "src/os/os_test.go"
+                 (("TestReaddirnamesOneAtATime") "areturn")
+                 (("TestStartProcess") "areturn1")
+                 (("TestChdirAndGetwd") "areturn2")
+                 (("TestHostname") "areturn3"))
+               
+               ;; this had a libgcc_s error, fuck
+               (delete-file "src/os/exec/exec_test.go")
+               
+               (chdir "src")
+               (unless (zero? (system* "bash" "./make.bash"))
+                 (error "Failed all.bash")))))
          (replace 'install
            (lambda* (#:key outputs #:allow-other-keys)
              (use-modules (ice-9 ftw))
@@ -275,6 +323,7 @@ and a large standard library.")
                            sd))
                (copy-recursively "go/bin" out-gobin)
                (symlink out-gobin (string-append out-goroot "/bin"))))))))
-    (native-inputs `(("gccgo" ,gccgo-5)
+    (native-inputs `(("go" ,go-1.4.3)
+                     ("gcc-lib" ,gcc "lib")
                      ("rc" ,rc)
                      ("perl" ,perl)))))

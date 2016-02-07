@@ -28,7 +28,7 @@
            (lambda* (#:key outputs #:allow-other-keys)
              (let ((destdir (assoc-ref outputs "out")))
                (unless (zero? (system* "make" (string-append "DESTDIR=" destdir)
-                                       "prefix="
+                                       "prefix=" ;; get the BINDIR's etc to be correct (i.e. not /usr)
                                        "install"))
                  (error "Failed to install"))))))))
     (inputs `(("python" ,python-2)))
